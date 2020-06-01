@@ -11,3 +11,5 @@ edition = "2018"
 [dependencies]
 clap = "2"
 dirs = "2"
+tracing = "0.1"
+tracing-subscriber = "0.2"

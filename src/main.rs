@@ -22,6 +22,8 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::PathBuf;
 use std::process::Command;
 
+use tracing::{error, info, debug};
+
 fn args() -> clap::App<'static, 'static> {
     clap::App::new("QuietMisdreavus Wallpaper Cycler")
         .author("(c) 2020 QuietMisdreavus")
@@ -32,10 +34,42 @@ fn args() -> clap::App<'static, 'static> {
             .takes_value(true)
             .value_name("DIR")
             .help("Sets the directory used to source wallpaper"))
+        .arg(clap::Arg::with_name("verbose")
+            .long("verbose")
+            .short("v")
+            .takes_value(false)
+            .multiple(true)
+            .help("Emits more information. Can be given up to three times."))
+        .arg(clap::Arg::with_name("quiet")
+            .long("quiet")
+            .short("q")
+            .takes_value(false)
+            .multiple(true)
+            .conflicts_with("verbose")
+            .help("Emits less information. Can be given once or twice."))
 }
 
 fn main() -> io::Result<()> {
     let args = args().get_matches();
+
+    let env_filter = {
+        use tracing_subscriber::filter::LevelFilter;
+
+        let verbosity = (args.occurrences_of("verbose") as i32) - (args.occurrences_of("quiet") as i32);
+        let f = tracing_subscriber::EnvFilter::from_default_env();
+        match verbosity {
+            -1 => f.add_directive(LevelFilter::ERROR.into()),
+            0 => f.add_directive(LevelFilter::WARN.into()),
+            1 => f.add_directive(LevelFilter::INFO.into()),
+            2 => f.add_directive(LevelFilter::DEBUG.into()),
+            _ if verbosity < -1 => f.add_directive(LevelFilter::OFF.into()),
+            _ if verbosity > 2 => f.add_directive(LevelFilter::TRACE.into()),
+            _ => unreachable!(),
+        }
+    };
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .init();
 
     if let Some(wall_dir) = args.value_of("set-dir") {
         println!("Setting wallpaper directory to {}", wall_dir);
@@ -92,8 +126,11 @@ fn get_current_wallpaper() -> io::Result<Option<PathBuf>> {
     }
 }
 
+#[tracing::instrument]
 fn get_next_wallpaper() -> io::Result<PathBuf> {
     let dir = get_wallpaper_dir()?;
+
+    debug!("Wallpaper directory is {}", dir.display());
 
     let mut walls = fs::read_dir(&dir)?
         .flatten()
@@ -101,7 +138,10 @@ fn get_next_wallpaper() -> io::Result<PathBuf> {
         .filter(|p| p.is_file())
         .collect::<BTreeSet<_>>();
 
+    info!("{} wallpapers found in directory", walls.len());
+
     if let Some(curr) = get_current_wallpaper()? {
+        debug!("Current wallpaper is {} accoding to cache", curr.display());
         let next_walls = walls.split_off(&curr);
         if let Some(next) = next_walls.into_iter().find(|p| p != &curr) {
             // return the file after the current one
@@ -110,17 +150,18 @@ fn get_next_wallpaper() -> io::Result<PathBuf> {
             // if the current file is the last one in the folder, return the first one instead
             Ok(next)
         } else {
-            eprintln!("No wallpapers found in wallpaper directory.");
+            error!("No wallpapers found in wallpaper directory.");
             Err(io::Error::new(io::ErrorKind::NotFound, "no wallpapers in directory"))
         }
     } else if let Some(first) = walls.into_iter().next() {
         Ok(first)
     } else {
-        eprintln!("No wallpapers found in wallpaper directory.");
+        error!("No wallpapers found in wallpaper directory.");
         Err(io::Error::new(io::ErrorKind::NotFound, "no wallpapers in directory"))
     }
 }
 
+#[tracing::instrument]
 fn set_next_wallpaper(next: PathBuf) -> io::Result<()> {
     let c = get_cache_file()?;
     fs::write(&c, next.as_os_str().as_bytes())?;
@@ -128,15 +169,20 @@ fn set_next_wallpaper(next: PathBuf) -> io::Result<()> {
     let mut path_arg = OsString::from("file://");
     path_arg.push(&next);
 
-    let cmd = Command::new("gsettings")
-        .arg("set")
-        .arg("org.gnome.desktop.background")
-        .arg("picture-uri")
-        .arg(&path_arg)
-        .status()?;
+    let cmd = {
+        let mut c = Command::new("gsettings");
+        c.arg("set");
+        c.arg("org.gnome.desktop.background");
+        c.arg("picture-uri");
+        c.arg(&path_arg);
+
+        debug!("Calling `{:?}`...", c);
+
+        c.status()?
+    };
 
     if !cmd.success() {
-        eprintln!("ERROR: the `gsettings` command exited in failure. Code: {:?}", cmd.code());
+        error!("ERROR: the `gsettings` command exited in failure. Code: {:?}", cmd.code());
         return Err(io::Error::new(io::ErrorKind::Other, "could not set wallpaper"));
     }
 
