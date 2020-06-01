@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::collections::BTreeSet;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
@@ -132,10 +132,14 @@ fn get_next_wallpaper() -> io::Result<PathBuf> {
 
     debug!("Wallpaper directory is {}", dir.display());
 
+    let exts = [OsStr::new("jpg"), OsStr::new("jpeg"), OsStr::new("png"), OsStr::new("bmp")];
+
     let mut walls = fs::read_dir(&dir)?
         .flatten()
         .map(|e| e.path())
-        .filter(|p| p.is_file())
+        .filter(|p| {
+            exts.iter().any(|ex| Some(*ex) == p.extension())
+        })
         .collect::<BTreeSet<_>>();
 
     info!("{} wallpapers found in directory", walls.len());
