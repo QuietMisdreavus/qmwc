@@ -14,6 +14,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+fn args() -> clap::App<'static, 'static> {
+    clap::App::new("QuietMisdreavus Wallpaper Cycler")
+        .author("(c) 2020 QuietMisdreavus")
+        .version(env!("CARGO_PKG_VERSION"))
+        .about("A script to manage my wallpaper on GNOME 3")
+        .arg(clap::Arg::with_name("set-dir")
+            .long("set-dir")
+            .takes_value(true)
+            .value_name("DIR")
+            .help("Sets the directory used to source wallpaper"))
+}
+
 fn main() {
-    println!("Hello, world!");
+    let args = args().get_matches();
+
+    if let Some(wall_dir) = args.value_of("set-dir") {
+        println!("Setting wallpaper directory to {}", wall_dir);
+    } else {
+        println!("TODO");
+    }
 }
