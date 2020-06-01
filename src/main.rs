@@ -20,6 +20,7 @@ use std::fs;
 use std::io;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::PathBuf;
+use std::process::Command;
 
 fn args() -> clap::App<'static, 'static> {
     clap::App::new("QuietMisdreavus Wallpaper Cycler")
@@ -123,6 +124,21 @@ fn get_next_wallpaper() -> io::Result<PathBuf> {
 fn set_next_wallpaper(next: PathBuf) -> io::Result<()> {
     let c = get_cache_file()?;
     fs::write(&c, next.as_os_str().as_bytes())?;
-    println!("TODO");
+
+    let mut path_arg = OsString::from("file://");
+    path_arg.push(&next);
+
+    let cmd = Command::new("gsettings")
+        .arg("set")
+        .arg("org.gnome.desktop.background")
+        .arg("picture-uri")
+        .arg(&path_arg)
+        .status()?;
+
+    if !cmd.success() {
+        eprintln!("ERROR: the `gsettings` command exited in failure. Code: {:?}", cmd.code());
+        return Err(io::Error::new(io::ErrorKind::Other, "could not set wallpaper"));
+    }
+
     Ok(())
 }
