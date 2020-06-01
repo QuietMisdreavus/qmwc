@@ -14,8 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use std::collections::BTreeSet;
+use std::ffi::OsString;
 use std::fs;
 use std::io;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::PathBuf;
 
 fn args() -> clap::App<'static, 'static> {
@@ -37,8 +40,9 @@ fn main() -> io::Result<()> {
         println!("Setting wallpaper directory to {}", wall_dir);
         set_wallpaper_dir(wall_dir)?;
     } else {
-        let _dir = get_wallpaper_dir()?;
-        println!("TODO");
+        let next = get_next_wallpaper()?;
+        println!("Setting next wallpaper to {}", next.display());
+        set_next_wallpaper(next)?;
     }
 
     Ok(())
@@ -66,4 +70,59 @@ fn get_wallpaper_dir() -> io::Result<PathBuf> {
     }
     let dir = fs::read_to_string(&f)?;
     Ok(PathBuf::from(dir))
+}
+
+fn get_cache_file() -> io::Result<PathBuf> {
+    let mut c = dirs::cache_dir().expect("could not locate XDG Cache folder");
+    c.push("qmwc");
+    fs::create_dir_all(&c)?;
+    c.push("current.txt");
+    Ok(c)
+}
+
+fn get_current_wallpaper() -> io::Result<Option<PathBuf>> {
+    let f = get_cache_file()?;
+    if f.exists() {
+        let buf = fs::read(&f)?;
+        let oss = OsString::from_vec(buf);
+        Ok(Some(PathBuf::from(oss)))
+    } else {
+        Ok(None)
+    }
+}
+
+fn get_next_wallpaper() -> io::Result<PathBuf> {
+    let dir = get_wallpaper_dir()?;
+
+    let mut walls = fs::read_dir(&dir)?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_file())
+        .collect::<BTreeSet<_>>();
+
+    if let Some(curr) = get_current_wallpaper()? {
+        let next_walls = walls.split_off(&curr);
+        if let Some(next) = next_walls.into_iter().find(|p| p != &curr) {
+            // return the file after the current one
+            Ok(next)
+        } else if let Some(next) = walls.into_iter().next() {
+            // if the current file is the last one in the folder, return the first one instead
+            Ok(next)
+        } else {
+            eprintln!("No wallpapers found in wallpaper directory.");
+            Err(io::Error::new(io::ErrorKind::NotFound, "no wallpapers in directory"))
+        }
+    } else if let Some(first) = walls.into_iter().next() {
+        Ok(first)
+    } else {
+        eprintln!("No wallpapers found in wallpaper directory.");
+        Err(io::Error::new(io::ErrorKind::NotFound, "no wallpapers in directory"))
+    }
+}
+
+fn set_next_wallpaper(next: PathBuf) -> io::Result<()> {
+    let c = get_cache_file()?;
+    fs::write(&c, next.as_os_str().as_bytes())?;
+    println!("TODO");
+    Ok(())
 }
