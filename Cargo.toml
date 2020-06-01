@@ -1,0 +1,11 @@
+[package]
+name = "qmwc"
+description = "QuietMisdreavus Wallpaper Cycler"
+license = "GPL-3.0-or-later"
+version = "0.0.0"
+authors = ["QuietMisdreavus <victoria@quietmisdreavus.net>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
