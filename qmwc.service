@@ -1,0 +1,6 @@
+[Unit]
+Description=QuietMisdreavus Wallpaper Cycler
+
+[Service]
+Type=oneshot
+ExecStart=%h/.cargo/bin/qmwc -vvv

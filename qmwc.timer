@@ -1,0 +1,10 @@
+[Unit]
+Description=Rotate wallpapers regularly
+
+[Timer]
+OnCalendar=*:0/10
+AccuracySec=10sec
+Unit=qmwc.service
+
+[Install]
+WantedBy=timers.target
