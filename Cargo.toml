@@ -1,6 +1,8 @@
 [package]
 name = "qmwc"
 description = "QuietMisdreavus Wallpaper Cycler"
+repository = "https://github.com/QuietMisdreavus/qmwc"
+readme = "README.md"
 license = "GPL-3.0-or-later"
 version = "0.0.0"
 authors = ["QuietMisdreavus <victoria@quietmisdreavus.net>"]
