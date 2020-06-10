@@ -7,4 +7,4 @@ AccuracySec=10sec
 Unit=qmwc.service
 
 [Install]
-WantedBy=timers.target
+WantedBy=gnome-session-initialized.target
