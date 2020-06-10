@@ -3,4 +3,4 @@ Description=QuietMisdreavus Wallpaper Cycler
 
 [Service]
 Type=oneshot
-ExecStart=%h/.cargo/bin/qmwc -vvv
+ExecStart=%h/.cargo/bin/qmwc -vvv --skip-if-locked

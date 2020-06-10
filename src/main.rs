@@ -22,7 +22,7 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::PathBuf;
 use std::process::Command;
 
-use tracing::{error, info, debug};
+use tracing::{error, warn, info, debug};
 
 fn args() -> clap::App<'static, 'static> {
     clap::App::new("QuietMisdreavus Wallpaper Cycler")
@@ -34,6 +34,10 @@ fn args() -> clap::App<'static, 'static> {
             .takes_value(true)
             .value_name("DIR")
             .help("Sets the directory used to source wallpaper"))
+        .arg(clap::Arg::with_name("skip-if-locked")
+            .long("skip-if-locked")
+            .takes_value(false)
+            .help("Before changing wallpaper, checks that the screensaver is active and quits if it is"))
         .arg(clap::Arg::with_name("verbose")
             .long("verbose")
             .short("v")
@@ -75,12 +79,37 @@ fn main() -> io::Result<()> {
         println!("Setting wallpaper directory to {}", wall_dir);
         set_wallpaper_dir(wall_dir)?;
     } else {
+        if args.is_present("skip-if-locked") {
+            if is_screen_locked()? {
+                println!("Screen is locked; not changing wallpaper");
+                return Ok(())
+            }
+        }
         let next = get_next_wallpaper()?;
         println!("Setting next wallpaper to {}", next.display());
         set_next_wallpaper(next)?;
     }
 
     Ok(())
+}
+
+#[tracing::instrument]
+fn is_screen_locked() -> io::Result<bool> {
+    let mut cmd = Command::new("gnome-screensaver-command");
+    cmd.arg("-q");
+
+    debug!("Running {:?}", cmd);
+
+    let output = cmd.output()?;
+    if let Ok(stdout) = std::str::from_utf8(&output.stdout) {
+        debug!("command output:\n{}", stdout);
+    } else {
+        warn!("gnome-screensaver-command didn't return utf-8 text?");
+    }
+    let needle = b"is active";
+
+    // if stdout contains the text "is active", then we're locked
+    Ok(output.stdout.windows(needle.len()).rev().any(|s| s == needle))
 }
 
 fn get_config_file() -> io::Result<PathBuf> {
